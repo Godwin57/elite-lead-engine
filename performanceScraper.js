@@ -14,18 +14,21 @@ async function runPerformanceScraper() {
     
     console.log(`Successfully loaded ${leads.length} records.`);
     const scoredData = [];
+    let successCount = 0;
+    let errorCount = 0;
 
     // 2. Set up the processing loop
     for (const lead of leads) {
       const targetUrl = lead.url;
       
       if (!targetUrl) {
-        console.warn('Warning: Missing URL for a record, skipping...');
+        console.warn(`⚠️ Warning: Record missing URL (index ${scoredData.length}). Skipping fetch...`);
         scoredData.push({ ...lead, mobileScore: 'Error' });
+        errorCount++;
         continue;
       }
       
-      console.log(`Fetching PageSpeed metrics for: ${targetUrl}`);
+      console.log(`[${scoredData.length + 1}/${leads.length}] Fetching PageSpeed metrics for: ${targetUrl}...`);
       try {
         // Construct the API URL targeting mobile strategy
         const apiKey = process.env.PAGESPEED_API_KEY;
@@ -39,31 +42,44 @@ async function runPerformanceScraper() {
         
         // Extract performance category score and convert (0 to 1) float to (0 to 100) integer
         const rawScore = jsonResponse.lighthouseResult?.categories?.performance?.score;
-        const mobileScore = rawScore != null ? Math.round(rawScore * 100) : 'Error';
+        
+        if (rawScore == null) {
+          throw new Error('API response missing performance score payload');
+        }
+
+        const mobileScore = Math.round(rawScore * 100);
+        console.log(`  ✅ Success | Score: ${mobileScore}`);
 
         scoredData.push({
           ...lead,
           mobileScore
         });
+        successCount++;
 
       } catch (error) {
-        // Basic error assignment (to be fully refined in Phase 3)
+        console.error(`  ❌ Failed: ${error.message || 'Dead link or Network error'}`);
         scoredData.push({ ...lead, mobileScore: 'Error' });
+        errorCount++;
       }
 
       // Strict 2500ms rate limit delay between API calls
       await delay(2500);
     }
 
-    // 3. Write dummy output
+    // 3. Finalize and write true output
     await fs.writeFile('./scoredData.json', JSON.stringify(scoredData, null, 2));
-    console.log('Phase 1 Complete: Successfully wrote dummy output to scoredData.json.');
+    
+    console.log('\n--- Extraction Complete ---');
+    console.log(`Total Processed: ${leads.length}`);
+    console.log(`Successful: ${successCount}`);
+    console.log(`Errors/Skipped: ${errorCount}`);
+    console.log('Results written to scoredData.json.');
 
   } catch (error) {
     if (error.code === 'ENOENT') {
-      console.error('Error: data.json not found in the root directory.');
+      console.error('❌ Critical Error: data.json not found in the root directory. Please provide the dataset.');
     } else {
-      console.error('Phase 1 Error:', error.message);
+      console.error('❌ Critical Script Error:', error.message);
     }
   }
 }

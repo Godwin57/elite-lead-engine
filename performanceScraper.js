@@ -19,7 +19,9 @@ async function runPerformanceScraper() {
 
     // 2. Set up the processing loop
     for (const lead of leads) {
-      const targetUrl = lead.website;
+      // Dynamically check for multiple common Apify URL keys
+      const targetUrl =
+        lead.website || lead.url || lead.websiteUrl || lead.domain;
 
       if (!targetUrl) {
         console.warn(

@@ -1,6 +1,9 @@
 require('dotenv').config();
 const fs = require('fs').promises;
 
+// Utility for rate limiting
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 async function runPerformanceScraper() {
   try {
     console.log('Starting execution: Reading data.json...');
@@ -22,11 +25,34 @@ async function runPerformanceScraper() {
         continue;
       }
       
-      // Dummy output for Phase 1
-      scoredData.push({
-        ...lead,
-        mobileScore: 'Pending'
-      });
+      console.log(`Fetching PageSpeed metrics for: ${targetUrl}`);
+      try {
+        // Construct the API URL targeting mobile strategy
+        const apiKey = process.env.PAGESPEED_API_KEY;
+        let apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(targetUrl)}&strategy=mobile`;
+        if (apiKey) apiUrl += `&key=${apiKey}`;
+
+        const response = await fetch(apiUrl);
+        if (!response.ok) throw new Error(`HTTP Status ${response.status}`);
+        
+        const jsonResponse = await response.json();
+        
+        // Extract performance category score and convert (0 to 1) float to (0 to 100) integer
+        const rawScore = jsonResponse.lighthouseResult?.categories?.performance?.score;
+        const mobileScore = rawScore != null ? Math.round(rawScore * 100) : 'Error';
+
+        scoredData.push({
+          ...lead,
+          mobileScore
+        });
+
+      } catch (error) {
+        // Basic error assignment (to be fully refined in Phase 3)
+        scoredData.push({ ...lead, mobileScore: 'Error' });
+      }
+
+      // Strict 2500ms rate limit delay between API calls
+      await delay(2500);
     }
 
     // 3. Write dummy output

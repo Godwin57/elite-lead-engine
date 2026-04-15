@@ -1,17 +1,17 @@
-require('dotenv').config();
-const fs = require('fs').promises;
+require("dotenv").config();
+const fs = require("fs").promises;
 
 // Utility for rate limiting
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function runPerformanceScraper() {
   try {
-    console.log('Starting execution: Reading data.json...');
-    
+    console.log("Starting execution: Reading data.json...");
+
     // 1. Read the initial JSON file
-    const rawData = await fs.readFile('./data.json', 'utf8');
+    const rawData = await fs.readFile("./data.json", "utf8");
     const leads = JSON.parse(rawData);
-    
+
     console.log(`Successfully loaded ${leads.length} records.`);
     const scoredData = [];
     let successCount = 0;
@@ -19,16 +19,20 @@ async function runPerformanceScraper() {
 
     // 2. Set up the processing loop
     for (const lead of leads) {
-      const targetUrl = lead.url;
-      
+      const targetUrl = lead.website;
+
       if (!targetUrl) {
-        console.warn(`⚠️ Warning: Record missing URL (index ${scoredData.length}). Skipping fetch...`);
-        scoredData.push({ ...lead, mobileScore: 'Error' });
+        console.warn(
+          `⚠️ Warning: Record missing URL (index ${scoredData.length}). Skipping fetch...`,
+        );
+        scoredData.push({ ...lead, mobileScore: "Error" });
         errorCount++;
         continue;
       }
-      
-      console.log(`[${scoredData.length + 1}/${leads.length}] Fetching PageSpeed metrics for: ${targetUrl}...`);
+
+      console.log(
+        `[${scoredData.length + 1}/${leads.length}] Fetching PageSpeed metrics for: ${targetUrl}...`,
+      );
       try {
         // Construct the API URL targeting mobile strategy
         const apiKey = process.env.PAGESPEED_API_KEY;
@@ -37,14 +41,15 @@ async function runPerformanceScraper() {
 
         const response = await fetch(apiUrl);
         if (!response.ok) throw new Error(`HTTP Status ${response.status}`);
-        
+
         const jsonResponse = await response.json();
-        
+
         // Extract performance category score and convert (0 to 1) float to (0 to 100) integer
-        const rawScore = jsonResponse.lighthouseResult?.categories?.performance?.score;
-        
+        const rawScore =
+          jsonResponse.lighthouseResult?.categories?.performance?.score;
+
         if (rawScore == null) {
-          throw new Error('API response missing performance score payload');
+          throw new Error("API response missing performance score payload");
         }
 
         const mobileScore = Math.round(rawScore * 100);
@@ -52,13 +57,14 @@ async function runPerformanceScraper() {
 
         scoredData.push({
           ...lead,
-          mobileScore
+          mobileScore,
         });
         successCount++;
-
       } catch (error) {
-        console.error(`  ❌ Failed: ${error.message || 'Dead link or Network error'}`);
-        scoredData.push({ ...lead, mobileScore: 'Error' });
+        console.error(
+          `  ❌ Failed: ${error.message || "Dead link or Network error"}`,
+        );
+        scoredData.push({ ...lead, mobileScore: "Error" });
         errorCount++;
       }
 
@@ -67,19 +73,23 @@ async function runPerformanceScraper() {
     }
 
     // 3. Finalize and write true output
-    await fs.writeFile('./scoredData.json', JSON.stringify(scoredData, null, 2));
-    
-    console.log('\n--- Extraction Complete ---');
+    await fs.writeFile(
+      "./scoredData.json",
+      JSON.stringify(scoredData, null, 2),
+    );
+
+    console.log("\n--- Extraction Complete ---");
     console.log(`Total Processed: ${leads.length}`);
     console.log(`Successful: ${successCount}`);
     console.log(`Errors/Skipped: ${errorCount}`);
-    console.log('Results written to scoredData.json.');
-
+    console.log("Results written to scoredData.json.");
   } catch (error) {
-    if (error.code === 'ENOENT') {
-      console.error('❌ Critical Error: data.json not found in the root directory. Please provide the dataset.');
+    if (error.code === "ENOENT") {
+      console.error(
+        "❌ Critical Error: data.json not found in the root directory. Please provide the dataset.",
+      );
     } else {
-      console.error('❌ Critical Script Error:', error.message);
+      console.error("❌ Critical Script Error:", error.message);
     }
   }
 }
